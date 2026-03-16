@@ -100,10 +100,12 @@ function figyeleEsemenyek() {
   if (unsubEsemenyek) unsubEsemenyek();
   const szuro = document.getElementById('ev-szuro')?.value || 'aktiv';
   let q = szuro
-    ? query(collection(db,'esemenyek'), where('allapot','==',szuro), orderBy('letrehozva','desc'))
-    : query(collection(db,'esemenyek'), orderBy('letrehozva','desc'));
+    ? query(collection(db,'esemenyek'), where('allapot','==',szuro))
+    : query(collection(db,'esemenyek'));
   unsubEsemenyek = onSnapshot(q, snap => {
-    window._esemenyek = snap.docs.map(d=>({id:d.id,...d.data()}));
+    window._esemenyek = snap.docs
+      .map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>(b.letrehozva?.seconds||0)-(a.letrehozva?.seconds||0));
     renderEsemenyLista();
     frissitStatisztika();
   });
@@ -111,9 +113,13 @@ function figyeleEsemenyek() {
 
 function figyeleAllomasRiasztasok(allomasId) {
   if (unsubRiasztasok) unsubRiasztasok();
-  const q = query(collection(db,'riasztasok'), where('allomas_id','==',allomasId), where('allapot','!=','lezarva'), orderBy('allapot'), orderBy('riasztva_ido','desc'));
+  // Csak allomas_id szűrő + JS-ben szűrjük ki a lezártakat
+  const q = query(collection(db,'riasztasok'), where('allomas_id','==',allomasId));
   unsubRiasztasok = onSnapshot(q, snap => {
-    window._allomasRiasztasok = snap.docs.map(d=>({id:d.id,...d.data()}));
+    window._allomasRiasztasok = snap.docs
+      .map(d=>({id:d.id,...d.data()}))
+      .filter(r => r.allapot !== 'lezarva')
+      .sort((a,b)=>(b.riasztva_ido?.seconds||0)-(a.riasztva_ido?.seconds||0));
     renderAllomasRiasztasok();
   });
 }
@@ -275,8 +281,8 @@ async function renderKozep(id) {
   document.getElementById('sb-ev').textContent   = e.esemeny_szam;
 
   // Napló betöltés
-  const naploSnap = await getDocs(query(collection(db,'naplo'), where('esemeny_id','==',id), orderBy('letrehozva','asc')));
-  const naplo = naploSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const naploSnap = await getDocs(query(collection(db,'naplo'), where('esemeny_id','==',id)));
+  const naplo = naploSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.letrehozva?.seconds||0)-(b.letrehozva?.seconds||0));
 
   el.innerHTML = `
     <div style="background:#c0c8d8;border-bottom:1px solid #aab;padding:5px 7px">
@@ -347,7 +353,7 @@ async function renderJobb(esemenyId) {
   const el = document.getElementById('jobb-szerek');
   if (!el) return;
 
-  const snap = await getDocs(query(collection(db,'riasztasok'), where('esemeny_id','==',esemenyId), orderBy('riasztva_ido','asc')));
+  const snap = await getDocs(query(collection(db,'riasztasok'), where('esemeny_id','==',esemenyId)));
   const riasztasok = snap.docs.map(d=>({id:d.id,...d.data()}));
 
   const allapotSzin = { kuldve:'#cc6600',nyugtazva:'#aa8800',vonulasban:'#cc6600',helyszinen:'#009900',visszaindult:'#666',lezarva:'#444' };
@@ -679,7 +685,7 @@ async function renderRiasztasiLap() {
     L.marker([e.gps_lat,e.gps_lng],{icon:mkFire(20)}).addTo(window._maps['rl']);
   }
 
-  const rSnap = await getDocs(query(collection(db,'riasztasok'),where('esemeny_id','==',id),orderBy('riasztva_ido','asc')));
+  const rSnap = await getDocs(query(collection(db,'riasztasok'),where('esemeny_id','==',id)));
   const riasztasok = rSnap.docs.map(d=>({id:d.id,...d.data()}));
   const allapotNev = {kuldve:'Küldve',nyugtazva:'Nyugtázva',vonulasban:'Vonulásban',helyszinen:'Helyszínen',visszaindult:'Visszaindult',lezarva:'Lezárva'};
 
