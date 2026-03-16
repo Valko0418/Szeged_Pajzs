@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>BM OKF PAJZS – Csongrád-Csanád megye</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, doc, addDoc, setDoc, updateDoc, getDoc, getDocs, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ── Firebase konfig ──────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyADGlAKG2kYIsH1qiyhOP5oCfdCzohoMP4",
+  authDomain: "pajzs-81558.firebaseapp.com",
+  projectId: "pajzs-81558",
+  storageBucket: "pajzs-81558.firebasestorage.app",
+  messagingSenderId: "247537477709",
+  appId: "1:247537477709:web:97cf897303e7eda9f3d404"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+
+// ── Kezdeti adatok betöltése (csak egyszer fut le) ───────────
+async function initData() {
+  const check = await getDocs(query(collection(db, 'allomasok')));
+  if (!check.empty) return; // már van adat
+
+  // Állomások
+  const allomasok = [
+    { id:'sze', nev:'Szeged HTP', varos:'Szeged', cim:'Kossuth Lajos sgt. 36.', gps_lat:46.2530, gps_lng:20.1414, telefon:'+36 62 553 222' },
+    { id:'hmv', nev:'Hódmezővásárhely HTP', varos:'Hódmezővásárhely', cim:'Szántó Kovács J. u. 1.', gps_lat:46.4183, gps_lng:20.3289, telefon:'+36 62 241 033' },
+    { id:'mak', nev:'Makó HTP', varos:'Makó', cim:'Deák Ferenc u. 15.', gps_lat:46.2197, gps_lng:20.4792, telefon:'+36 62 213 222' },
+    { id:'szt', nev:'Szentes HTP', varos:'Szentes', cim:'Kossuth u. 12.', gps_lat:46.6560, gps_lng:20.2612, telefon:'+36 63 561 022' },
+  ];
+  for (const a of allomasok) {
+    await setDoc(doc(db, 'allomasok', a.id), a);
+  }
+
+  // Szerek
+  const szerek = [
+    // Szeged
+    { allomas_id:'sze', allomas_nev:'Szeged HTP', hivonev:'Szeged/1',       tipus:'VÖFM',          rendszam:'FCS-001', hivoszam:'101', szemelyzet_fo:6, viz_liter:2400, mentesi_mag_m:0, allapot:'laktanyaban' },
+    { allomas_id:'sze', allomas_nev:'Szeged HTP', hivonev:'Szeged/2',       tipus:'VÖFM',          rendszam:'FCS-002', hivoszam:'102', szemelyzet_fo:6, viz_liter:2400, mentesi_mag_m:0, allapot:'laktanyaban' },
+    { allomas_id:'sze', allomas_nev:'Szeged HTP', hivonev:'Szeged/Létra',   tipus:'Mentőlétra 30m', rendszam:'FCS-010', hivoszam:'110', szemelyzet_fo:3, viz_liter:0,    mentesi_mag_m:30, allapot:'laktanyaban' },
+    { allomas_id:'sze', allomas_nev:'Szeged HTP', hivonev:'Szeged/Tartály', tipus:'Tartálykocsi',  rendszam:'FCS-020', hivoszam:'120', szemelyzet_fo:2, viz_liter:8000, mentesi_mag_m:0, allapot:'laktanyaban' },
+    { allomas_id:'sze', allomas_nev:'Szeged HTP', hivonev:'Szeged/Műszaki', tipus:'Műszaki mentő', rendszam:'FCS-030', hivoszam:'130', szemelyzet_fo:4, viz_liter:0,    mentesi_mag_m:0, allapot:'laktanyaban' },
+    // Hódmező
+    { allomas_id:'hmv', allomas_nev:'Hódmező HTP', hivonev:'Hódmező/1',       tipus:'VÖFM',          rendszam:'FCH-001', hivoszam:'201', szemelyzet_fo:6, viz_liter:2400, mentesi_mag_m:0, allapot:'laktanyaban' },
+    { allomas_id:'hmv', allomas_nev:'Hódmező HTP', hivonev:'Hódmező/2',       tipus:'VÖFM',          rendszam:'FCH-002', hivoszam:'202', szemelyzet_fo:5, viz_liter:1800, mentesi_mag_m:0, allapot:'laktanyaban' },
+    { allomas_id:'hmv', allomas_nev:'Hódmező HTP', hivonev:'Hódmező/Létra',   tipus:'Mentőlétra 24m', rendszam:'FCH-010', hivoszam:'210', szemelyzet_fo:3, viz_liter:0,    mentesi_mag_m:24, allapot:'laktanyaban' },
+    { allomas_id:'hmv', allomas_nev:'Hódmező HTP', hivonev:'Hódmező/Tartály', tipus:'Tartálykocsi',  rendszam:'FCH-020', hivoszam:'220', szemelyzet_fo:2, viz_liter:8000, mentesi_mag_m:0, allapot:'laktanyaban' },
+    // Makó
+    { allomas_id:'mak', allomas_nev:'Makó HTP', hivonev:'Makó/1',       tipus:'VÖFM',         rendszam:'FCM-001', hivoszam:'301', szemelyzet_fo:6, viz_liter:2400, mentesi_mag_m:0, allapot:'laktanyaban' },
+    { allomas_id:'mak', allomas_nev:'Makó HTP', hivonev:'Makó/2',       tipus:'VÖFM',         rendszam:'FCM-002', hivoszam:'302', szemelyzet_fo:5, viz_liter:1800, mentesi_mag_m:0, allapot:'laktanyaban' },
+    { allomas_id:'mak', allomas_nev:'Makó HTP', hivonev:'Makó/Tartály', tipus:'Tartálykocsi', rendszam:'FCM-010', hivoszam:'310', szemelyzet_fo:2, viz_liter:8000, mentesi_mag_m:0, allapot:'laktanyaban' },
+    // Szentes
+    { allomas_id:'szt', allomas_nev:'Szentes HTP', hivonev:'Szentes/1',       tipus:'VÖFM',         rendszam:'FCSZ-001', hivoszam:'401', szemelyzet_fo:6, viz_liter:2400, mentesi_mag_m:0, allapot:'laktanyaban' },
+    { allomas_id:'szt', allomas_nev:'Szentes HTP', hivonev:'Szentes/2',       tipus:'VÖFM',         rendszam:'FCSZ-002', hivoszam:'402', szemelyzet_fo:5, viz_liter:1800, mentesi_mag_m:0, allapot:'laktanyaban' },
+    { allomas_id:'szt', allomas_nev:'Szentes HTP', hivonev:'Szentes/Tartály', tipus:'Tartálykocsi', rendszam:'FCSZ-010', hivoszam:'410', szemelyzet_fo:2, viz_liter:8000, mentesi_mag_m:0, allapot:'laktanyaban' },
+  ];
+  for (const s of szerek) {
+    await addDoc(collection(db, 'szerek'), s);
+  }
+
+  // Felhasználók
+  const users = [
+    { felhasznalonev:'diszpecser1', jelszo:'pajzs1234', nev:'Kovács Péter – Diszpécser',        szerepkor:'diszpecser',        allomas_id:null, allomas_nev:null },
+    { felhasznalonev:'diszpecser2', jelszo:'pajzs1234', nev:'Nagy Éva – Diszpécser',            szerepkor:'diszpecser',        allomas_id:null, allomas_nev:null },
+    { felhasznalonev:'parancsnok',  jelszo:'komd2024',  nev:'Dr. Szabó L. tű. ezredes',        szerepkor:'parancsnok',        allomas_id:null, allomas_nev:null },
+    { felhasznalonev:'szeged',      jelszo:'szeged123', nev:'Szeged HTP – Ügyelet',            szerepkor:'allomas_diszpecser', allomas_id:'sze', allomas_nev:'Szeged HTP' },
+    { felhasznalonev:'hodmezo',     jelszo:'hodmezo123',nev:'Hódmező HTP – Ügyelet',           szerepkor:'allomas_diszpecser', allomas_id:'hmv', allomas_nev:'Hódmezővásárhely HTP' },
+    { felhasznalonev:'mako',        jelszo:'mako123',   nev:'Makó HTP – Ügyelet',              szerepkor:'allomas_diszpecser', allomas_id:'mak', allomas_nev:'Makó HTP' },
+    { felhasznalonev:'szentes',     jelszo:'szentes123',nev:'Szentes HTP – Ügyelet',           szerepkor:'allomas_diszpecser', allomas_id:'szt', allomas_nev:'Szentes HTP' },
+  ];
+  for (const u of users) {
+    await setDoc(doc(db, 'felhasznalok', u.felhasznalonev), u);
+  }
+
+  console.log('Adatok inicializálva!');
+}
+
+// ── Eseményszám generálás ────────────────────────────────────
+async function ujEsemenySzam() {
+  const ev = new Date().getFullYear();
+  const q = await getDocs(collection(db, 'esemenyek'));
+  const sorsz = String(q.size + 1).padStart(5, '0');
+  return `${ev}CSONGRAD${sorsz}`;
+}
+
+// ── Valós idejű feliratkozások ───────────────────────────────
+let unsubEsemenyek   = null;
+let unsubRiasztasok  = null;
+let unsubSzerek      = null;
+
+function figyeleEsemenyek() {
+  if (unsubEsemenyek) unsubEsemenyek();
+  const szuro = document.getElementById('ev-szuro')?.value || 'aktiv';
+  let q = szuro
+    ? query(collection(db,'esemenyek'), where('allapot','==',szuro), orderBy('letrehozva','desc'))
+    : query(collection(db,'esemenyek'), orderBy('letrehozva','desc'));
+  unsubEsemenyek = onSnapshot(q, snap => {
+    window._esemenyek = snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderEsemenyLista();
+    frissitStatisztika();
+  });
+}
+
+function figyeleAllomasRiasztasok(allomasId) {
+  if (unsubRiasztasok) unsubRiasztasok();
+  const q = query(collection(db,'riasztasok'), where('allomas_id','==',allomasId), where('allapot','!=','lezarva'), orderBy('allapot'), orderBy('riasztva_ido','desc'));
+  unsubRiasztasok = onSnapshot(q, snap => {
+    window._allomasRiasztasok = snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderAllomasRiasztasok();
+  });
+}
+
+function figyeleSzerek() {
+  if (unsubSzerek) unsubSzerek();
+  unsubSzerek = onSnapshot(collection(db,'szerek'), snap => {
+    window._szerek = snap.docs.map(d=>({id:d.id,...d.data()}));
+    frissitStatisztika();
+    if (document.getElementById('pg-szerek')?.classList.contains('active')) renderSzerekOldal();
+    if (document.getElementById('pg-szerallapot')?.classList.contains('active')) renderSzerallapot();
+    if (window._kivalasztottEsemenyId) renderJobb(window._kivalasztottEsemenyId);
+  });
+}
+
+// ── LOGIN ────────────────────────────────────────────────────
+window.doLogin = async function() {
+  const u = document.getElementById('lu').value.trim().toLowerCase();
+  const p = document.getElementById('lp').value;
+  const e = document.getElementById('lerr');
+  if (!u||!p) { e.textContent='Töltse ki az összes mezőt!'; return; }
+
+  const snap = await getDoc(doc(db,'felhasznalok',u));
+  if (!snap.exists()) { e.textContent='Hibás felhasználónév vagy jelszó!'; return; }
+  const user = snap.data();
+  if (user.jelszo !== p) { e.textContent='Hibás felhasználónév vagy jelszó!'; document.getElementById('lp').value=''; return; }
+
+  window._user = { id:u, ...user };
+  e.textContent = '';
+
+  // Felhasználó kijelzés frissítés
+  document.querySelectorAll('[id^="nu-"]').forEach(el => el.textContent = user.nev);
+  document.querySelectorAll('[id^="sb-user"]').forEach(el => el.textContent = user.nev);
+
+  figyeleSzerek();
+
+  if (user.szerepkor === 'allomas_diszpecser') {
+    document.getElementById('allomas-cim').textContent = user.allomas_nev || 'ÁLLOMÁS';
+    document.getElementById('sb-allomas').textContent  = user.allomas_nev || '–';
+    figyeleAllomasRiasztasok(user.allomas_id);
+    go('allomas');
+    betoltAllomasSzerek();
+  } else {
+    figyeleEsemenyek();
+    go('fo');
+  }
+}
+
+window.doLogout = function() {
+  if (!confirm('Valóban ki szeretne lépni?')) return;
+  if (unsubEsemenyek)  unsubEsemenyek();
+  if (unsubRiasztasok) unsubRiasztasok();
+  if (unsubSzerek)     unsubSzerek();
+  window._user = null;
+  window._kivalasztottEsemenyId = null;
+  document.getElementById('lu').value='';
+  document.getElementById('lp').value='';
+  document.getElementById('lerr').textContent='';
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pg-login').classList.add('active');
+}
+
+// ── NAVIGÁCIÓ ────────────────────────────────────────────────
+const TABS = [
+  { id:'fo',            label:'FŐKÉPERNYŐ'     },
+  { id:'uj-esemeny',    label:'ÚJ ESEMÉNY'     },
+  { id:'szerek',        label:'SZEREK'         },
+  { id:'riasztasi-lap', label:'RIASZTÁSI LAP'  },
+  { id:'szerallapot',   label:'SZERÁLLAPOT'    },
+];
+
+window.go = function(pageId) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pg-'+pageId)?.classList.add('active');
+
+  // Navbar tab-ok
+  const user = window._user;
+  if (user && user.szerepkor !== 'allomas_diszpecser') {
+    document.querySelectorAll('[id^="tabs-"]').forEach(el => {
+      el.innerHTML = TABS.map(t =>
+        `<span class="ntab${t.id===pageId?' active':''}" onclick="go('${t.id}')">${t.label}</span>`
+      ).join('');
+    });
+  }
+
+  // Oldal betöltés
+  setTimeout(() => {
+    if (pageId==='uj-esemeny')   initUjeMap();
+    if (pageId==='szerek')       renderSzerekOldal();
+    if (pageId==='riasztasi-lap') renderRiasztasiLap();
+    if (pageId==='szerallapot')  renderSzerallapot();
+    if (pageId==='fo') {
+      figyeleEsemenyek();
+      if (window._kivalasztottEsemenyId) {
+        renderKozep(window._kivalasztottEsemenyId);
+        renderJobb(window._kivalasztottEsemenyId);
+      }
+    }
+    Object.values(window._maps||{}).forEach(m=>{ try{m.invalidateSize()}catch(e){} });
+  }, 60);
+}
+
+// ── ESEMÉNY LISTA RENDER ─────────────────────────────────────
+function renderEsemenyLista() {
+  const lista = document.getElementById('ev-lista');
+  if (!lista) return;
+  const esemenyek = window._esemenyek || [];
+  document.getElementById('ev-db').textContent = esemenyek.length;
+
+  if (esemenyek.length === 0) {
+    lista.innerHTML = '<div style="padding:16px;text-align:center;color:#667;font-size:11px">Nincs esemény</div>';
+    return;
+  }
+
+  lista.innerHTML = esemenyek.map(e => `
+    <div class="ev-card${window._kivalasztottEsemenyId===e.id?' sel':''}" onclick="kivalasztEsemeny('${e.id}')">
+      <div class="ev-hdr">
+        <span class="ev-szam">${e.esemeny_szam}</span>
+        <span class="kb k${(e.riasztasi_fokozat||'I').replace('.','')}">${e.riasztasi_fokozat||'I.'}</span>
+      </div>
+      <div class="ev-tip">${e.jelleg||'–'} ${e.jelleg_kat1?'– '+e.jelleg_kat1:''}</div>
+      <div class="ev-cim">📍 ${e.helyszin_cim||''}, ${e.helyszin_varos||''}</div>
+      <div class="ev-foot">
+        ${e.eletveszer ? '<span class="badge b-red">ÉLETVESZÉLY</span>' : ''}
+        ${e.szemelyi_serules ? '<span class="badge b-org">SÉRÜLÉS</span>' : ''}
+        <span style="margin-left:auto;font-size:10px;color:#667">
+          ${e.letrehozva?.toDate ? e.letrehozva.toDate().toTimeString().slice(0,5) : ''}
+        </span>
+      </div>
+    </div>
+  `).join('');
+}
+
+window.szurEsemenyek = function(v) {
+  v = v.toLowerCase();
+  document.querySelectorAll('.ev-card').forEach(c => {
+    c.style.display = (!v || c.textContent.toLowerCase().includes(v)) ? '' : 'none';
+  });
+}
+
+window.kivalasztEsemeny = async function(id) {
+  window._kivalasztottEsemenyId = id;
+  renderEsemenyLista();
+  document.getElementById('sb-ev').textContent = '…';
+  await renderKozep(id);
+  await renderJobb(id);
+}
+
+// ── KÖZÉPSŐ PANEL ────────────────────────────────────────────
+async function renderKozep(id) {
+  const el = document.getElementById('kp-tartalom');
+  if (!el) return;
+
+  const snap = await getDoc(doc(db,'esemenyek',id));
+  if (!snap.exists()) return;
+  const e = { id:snap.id, ...snap.data() };
+
+  document.getElementById('kp-szam').textContent = e.esemeny_szam;
+  document.getElementById('sb-ev').textContent   = e.esemeny_szam;
+
+  // Napló betöltés
+  const naploSnap = await getDocs(query(collection(db,'naplo'), where('esemeny_id','==',id), orderBy('letrehozva','asc')));
+  const naplo = naploSnap.docs.map(d=>({id:d.id,...d.data()}));
+
+  el.innerHTML = `
+    <div style="background:#c0c8d8;border-bottom:1px solid #aab;padding:5px 7px">
+      <div style="background:#003399;color:#fff;font-size:10px;font-weight:bold;padding:2px 6px;margin-bottom:5px">BEJELENTŐ</div>
+      <div class="fr"><span class="fl">Neve:</span><input class="fi" style="flex:1" value="${e.bejelento_nev||''}" id="kp-bejelnev"></div>
+      <div class="fr"><span class="fl">Telefonszám:</span><input class="fi" style="flex:1" value="${e.bejelento_tel||''}" id="kp-tel"></div>
+    </div>
+    <div style="background:#c0c8d8;border-bottom:1px solid #aab;padding:5px 7px">
+      <div style="background:#003399;color:#fff;font-size:10px;font-weight:bold;padding:2px 6px;margin-bottom:5px">HELYSZÍN</div>
+      <div class="fr"><span class="fl">Város:</span><input class="fi" style="flex:1" value="${e.helyszin_varos||''}" id="kp-varos"></div>
+      <div class="fr"><span class="fl">Cím:</span><input class="fi" style="flex:1" value="${e.helyszin_cim||''}" id="kp-cim"></div>
+      ${e.gps_lat ? `<div class="fr"><span class="fl">GPS:</span><span class="gps-chip">${e.gps_lat.toFixed(4)}, ${e.gps_lng.toFixed(4)}</span></div>` : ''}
+    </div>
+    <div style="background:#c0c8d8;border-bottom:1px solid #aab;padding:5px 7px">
+      <div style="background:#003399;color:#fff;font-size:10px;font-weight:bold;padding:2px 6px;margin-bottom:5px">ESEMÉNY ADATAI</div>
+      <div class="fr"><span class="fl">Káreset fajtája:</span><b style="font-size:11px;color:#003399">${e.jelleg||'–'}</b></div>
+      <div class="fr"><span class="fl">Kategória:</span><span style="font-size:11px">${[e.jelleg_kat1,e.jelleg_kat2,e.jelleg_kat3,e.jelleg_kat4].filter(Boolean).join(' → ')}</span></div>
+      <div class="fr"><span class="fl">Riasztási fok.:</span>
+        <select class="fs" id="kp-fok" style="max-width:55px">
+          <option${e.riasztasi_fokozat==='I.'?' selected':''}>I.</option>
+          <option${e.riasztasi_fokozat==='II.'?' selected':''}>II.</option>
+          <option${e.riasztasi_fokozat==='III.'?' selected':''}>III.</option>
+        </select>
+        <span class="kb k${(e.riasztasi_fokozat||'I').replace('.','')}" id="kp-kat-b">${e.riasztasi_fokozat||'I.'}</span>
+      </div>
+      <div class="fr"><span class="fl">Életveszély:</span><b style="color:${e.eletveszer?'#cc0000':'#006600'}">${e.eletveszer?'IGEN':'NEM'}</b></div>
+      <div class="fr" style="align-items:flex-start"><span class="fl">Leírás:</span>
+        <textarea class="fi" style="flex:1;height:46px;resize:none" id="kp-leiras">${e.leiras||''}</textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:4px;padding:5px 6px;background:#c0c8d8;border-bottom:1px solid #aab">
+      <button class="btn br" style="flex:1" onclick="megnyitRiasztasModal('${id}')">⚡ SZER RIASZTÁSA</button>
+      <button class="btn bg" onclick="mentEsemeny()">MENTÉS</button>
+      <button class="btn bgr" onclick="esemenyLezar('${id}')">LEZÁRÁS</button>
+    </div>
+    <div style="background:#004488;color:#ccddff;font-size:10px;font-weight:bold;padding:2px 7px">BEAVATKOZÁSI NAPLÓ</div>
+    <div style="overflow-y:auto;max-height:200px">
+      <table class="tbl">
+        <thead><tr><th>Idő</th><th>Típus</th><th>Bejegyzés</th><th>Kezelő</th></tr></thead>
+        <tbody>
+          ${naplo.map(n=>`
+            <tr class="${n.tipus==='riasztas'?'rr':n.tipus==='visszajelzes'?'rg':'rb'}">
+              <td class="tc">${n.letrehozva?.toDate?n.letrehozva.toDate().toTimeString().slice(0,5):'–'}</td>
+              <td>${(n.tipus||'').toUpperCase()}</td>
+              <td>${n.szoveg}</td>
+              <td>${n.felhasznalo_nev||'AUTO'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div style="padding:5px;background:#c0c8d4;display:flex;gap:4px;border-top:1px solid #aab">
+      <input class="fi" id="naplo-inp" placeholder="Megjegyzés…" style="flex:1" onkeydown="if(event.key==='Enter')naplorRogzit('${id}')">
+      <button class="btn bb" onclick="naplorRogzit('${id}')">RÖGZÍT</button>
+    </div>
+  `;
+
+  // Kategória badge szinkron
+  document.getElementById('kp-fok')?.addEventListener('change', function() {
+    const b = document.getElementById('kp-kat-b');
+    b.textContent = this.value;
+    b.className = 'kb k' + this.value.replace('.','');
+  });
+}
+
+// ── JOBB PANEL (riasztott szerek) ────────────────────────────
+async function renderJobb(esemenyId) {
+  const el = document.getElementById('jobb-szerek');
+  if (!el) return;
+
+  const snap = await getDocs(query(collection(db,'riasztasok'), where('esemeny_id','==',esemenyId), orderBy('riasztva_ido','asc')));
+  const riasztasok = snap.docs.map(d=>({id:d.id,...d.data()}));
+
+  const allapotSzin = { kuldve:'#cc6600',nyugtazva:'#aa8800',vonulasban:'#cc6600',helyszinen:'#009900',visszaindult:'#666',lezarva:'#444' };
+  const allapotNev  = { kuldve:'KÜLDVE',nyugtazva:'NYUGTÁZVA',vonulasban:'VONULÁSBAN',helyszinen:'HELYSZÍNEN',visszaindult:'VISSZAINDULT',lezarva:'LEZÁRVA' };
+
+  el.innerHTML = `
+    <div style="background:#004488;color:#ccddff;font-size:10px;font-weight:bold;padding:2px 7px">LERIASZTOTT SZEREK (${riasztasok.length} db)</div>
+    ${riasztasok.length===0
+      ? '<div style="padding:10px;text-align:center;color:#667;font-size:11px">Még nincs riasztott szer</div>'
+      : riasztasok.map(r=>`
+        <div style="background:#c8d0e0;border-bottom:1px solid #aab;padding:7px 10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+            <b style="color:#003399">${r.szer_hivonev}</b>
+            <span style="background:${allapotSzin[r.allapot]||'#888'};color:#fff;padding:1px 8px;border-radius:2px;font-size:10px;font-weight:bold">${allapotNev[r.allapot]||r.allapot}</span>
+          </div>
+          <div style="font-size:10px;color:#445">${r.allomas_nev} · ${r.szer_hivoszam||'–'}</div>
+          <div style="font-size:10px;color:#667;margin-top:2px">
+            Riasztva: ${r.riasztva_ido?.toDate?r.riasztva_ido.toDate().toTimeString().slice(0,5):'–'}
+            ${r.kiekerzes_ido?` · Érkezett: ${r.kiekerzes_ido.toDate().toTimeString().slice(0,5)}`:''}
+          </div>
+        </div>
+      `).join('')}
+    <div style="padding:6px 8px">
+      <button class="btn br" style="width:100%" onclick="megnyitRiasztasModal('${esemenyId}')">⚡ SZER HOZZÁADÁSA</button>
+    </div>
+  `;
+}
+
+// ── STATISZTIKA ──────────────────────────────────────────────
+function frissitStatisztika() {
+  const esemenyek = window._esemenyek || [];
+  const szerek    = window._szerek    || [];
+  const aktiv  = esemenyek.filter(e=>e.allapot==='aktiv').length;
+  const vonulo = szerek.filter(s=>s.allapot==='vonulasban'||s.allapot==='helyszinen').length;
+  const sb_a = document.getElementById('sb-aktiv');
+  const sb_v = document.getElementById('sb-vonulo');
+  const ev_d = document.getElementById('ev-db');
+  if (sb_a) sb_a.textContent = aktiv;
+  if (sb_v) sb_v.textContent = vonulo;
+  if (ev_d) ev_d.textContent = esemenyek.length;
+}
+
+// ── ESEMÉNY MENTÉS / LEZÁRÁS ─────────────────────────────────
+window.mentEsemeny = async function() {
+  const id = window._kivalasztottEsemenyId;
+  if (!id) return;
+  await updateDoc(doc(db,'esemenyek',id), {
+    bejelento_nev:    document.getElementById('kp-bejelnev')?.value || '',
+    bejelento_tel:    document.getElementById('kp-tel')?.value || '',
+    helyszin_varos:   document.getElementById('kp-varos')?.value || '',
+    helyszin_cim:     document.getElementById('kp-cim')?.value || '',
+    leiras:           document.getElementById('kp-leiras')?.value || '',
+    riasztasi_fokozat:document.getElementById('kp-fok')?.value || 'I.',
+    frissitve:        serverTimestamp(),
+  });
+  toast('Adatlap mentve', 'RENDSZER');
+}
+
+window.esemenyLezar = async function(id) {
+  if (!confirm('Valóban lezárja ezt az eseményt?')) return;
+  await updateDoc(doc(db,'esemenyek',id), { allapot:'lezart', frissitve:serverTimestamp() });
+  await addDoc(collection(db,'naplo'), { esemeny_id:id, tipus:'rendszer', szoveg:'Esemény lezárva.', felhasznalo_nev:window._user?.nev, letrehozva:serverTimestamp() });
+  toast('Esemény lezárva', 'RENDSZER');
+  window._kivalasztottEsemenyId = null;
+  document.getElementById('kp-tartalom').innerHTML = '<div class="ld">Válasszon eseményt a listából</div>';
+  document.getElementById('jobb-szerek').innerHTML = '';
+}
+
+// ── NAPLÓ RÖGZÍTÉS ───────────────────────────────────────────
+window.naplorRogzit = async function(esemenyId) {
+  const inp = document.getElementById('naplo-inp');
+  const v = inp?.value?.trim();
+  if (!v) return;
+  await addDoc(collection(db,'naplo'), { esemeny_id:esemenyId, tipus:'megjegyzes', szoveg:v, felhasznalo_nev:window._user?.nev||'–', letrehozva:serverTimestamp() });
+  inp.value = '';
+  renderKozep(esemenyId);
+  toast('Bejegyzés rögzítve', 'NAPLÓ');
+}
+
+// ── SZER RIASZTÁS MODAL ──────────────────────────────────────
+let _modalEsemenyId = null;
+
+window.megnyitRiasztasModal = async function(esemenyId) {
+  _modalEsemenyId = esemenyId;
+  const snap = await getDoc(doc(db,'esemenyek',esemenyId));
+  document.getElementById('m-ev-szam').textContent = snap.data()?.esemeny_szam || '–';
+  document.getElementById('m-allomas-szuro').value = '';
+  await betoltSzerModal();
+  document.getElementById('m-riasztas').classList.add('open');
+}
+
+window.betoltSzerModal = async function() {
+  const allomasId = document.getElementById('m-allomas-szuro')?.value;
+  let szerek = window._szerek || [];
+  if (allomasId) szerek = szerek.filter(s=>s.allomas_id===allomasId);
+
+  const allapotNev = { laktanyaban:'LAKTANYÁBAN',riaszthato:'RIASZTHATÓ',vonulasban:'VONULÁSBAN',helyszinen:'HELYSZÍNEN',visszaindult:'VISSZAINDULT',muszakihiba:'M.HIBÁS',nemElerheto:'NEM ELÉRHETŐ' };
+  const sor = { laktanyaban:'rg',riaszthato:'rg',vonulasban:'ro',helyszinen:'ro',visszaindult:'ry',muszakihiba:'rr',nemElerheto:'rr' };
+
+  document.getElementById('m-szer-body').innerHTML = szerek.map(s => `
+    <tr class="${sor[s.allapot]||''}">
+      <td style="font-size:10px">${s.allomas_nev}</td>
+      <td><b>${s.hivonev}</b></td>
+      <td style="font-size:10px">${s.tipus}</td>
+      <td>${s.szemelyzet_fo}</td>
+      <td>${s.viz_liter?s.viz_liter+'L':(s.mentesi_mag_m?s.mentesi_mag_m+'m':'–')}</td>
+      <td><b style="font-size:10px">${allapotNev[s.allapot]||s.allapot}</b></td>
+      <td>${s.allapot==='laktanyaban'||s.allapot==='riaszthato'
+        ?`<button class="btn br" style="font-size:9px;padding:1px 7px" onclick="riasztSzer('${s.id}','${s.hivonev}','${s.hivoszam||'–'}','${s.allomas_id}','${s.allomas_nev}')">RIASZT</button>`
+        :'–'}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="7" style="text-align:center;color:#666;padding:8px">Nincs elérhető szer</td></tr>';
+}
+
+window.riasztSzer = async function(szerId, hivonev, hivoszam, allomasId, allomasNev) {
+  if (!_modalEsemenyId) return;
+  const user = window._user;
+
+  // Riasztás létrehozása
+  await addDoc(collection(db,'riasztasok'), {
+    esemeny_id:   _modalEsemenyId,
+    szer_id:      szerId,
+    szer_hivonev: hivonev,
+    szer_hivoszam: hivoszam,
+    allomas_id:   allomasId,
+    allomas_nev:  allomasNev,
+    allapot:      'kuldve',
+    riasztva_ido: serverTimestamp(),
+  });
+
+  // Szer állapot frissítés
+  await updateDoc(doc(db,'szerek',szerId), { allapot:'vonulasban' });
+
+  // Napló
+  await addDoc(collection(db,'naplo'), {
+    esemeny_id: _modalEsemenyId,
+    tipus: 'riasztas',
+    szoveg: `${hivonev} (${allomasNev}) riasztva.`,
+    felhasznalo_nev: user?.nev||'–',
+    letrehozva: serverTimestamp(),
+  });
+
+  toast(`${hivonev} riasztva!`, 'RIASZTÁS');
+  document.getElementById('m-riasztas').classList.remove('open');
+  renderJobb(_modalEsemenyId);
+  renderKozep(_modalEsemenyId);
+}
+
+// ── ÚJ ESEMÉNY OLDAL ────────────────────────────────────────
+window._maps = {};
+let _ujeMarker = null;
+
+window.initUjeMap = function() {
+  if (window._maps['uje']) { window._maps['uje'].invalidateSize(); return; }
+  const m = L.map('uje-map', { zoomControl:true, scrollWheelZoom:true }).setView([46.253,20.141], 10);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'©OSM', maxZoom:19 }).addTo(m);
+  m.on('click', e => {
+    document.getElementById('uje-lat').value = e.latlng.lat.toFixed(5);
+    document.getElementById('uje-lng').value = e.latlng.lng.toFixed(5);
+    document.getElementById('uje-gps-txt').textContent = e.latlng.lat.toFixed(4)+', '+e.latlng.lng.toFixed(4);
+    if (_ujeMarker) m.removeLayer(_ujeMarker);
+    _ujeMarker = L.marker(e.latlng, { icon:mkFire(18) }).addTo(m);
+  });
+  window._maps['uje'] = m;
+}
+
+window.ujeTab = function(name, btn) {
+  ['cim','koo'].forEach(n => {
+    const p = document.getElementById('ujep-'+n);
+    if (p) p.style.display = n===name?'block':'none';
+    const t = document.getElementById('ujet-'+n);
+    if (t) t.classList.toggle('sel', n===name);
+  });
+}
+
+window.ujeKeres = function() {
+  const v = document.getElementById('us-varos').value||'Szeged';
+  const c = document.getElementById('us-cim-inp').value;
+  if (!c) return;
+  const fl = document.getElementById('uje-found');
+  const items = [`${v}, ${c}`, `${v}, ${c} 1.`, `${v}, ${c} 2.`];
+  fl.innerHTML = items.map((item,i) =>
+    `<div style="padding:4px 8px;border-bottom:1px solid #dde;cursor:pointer;font-size:11px;${i===0?'background:#003399;color:#fff':''}"
+      onclick="this.parentElement.querySelectorAll('div').forEach(d=>{d.style.background='';d.style.color=''});this.style.background='#003399';this.style.color='#fff';
+               document.getElementById('uje-varos').value='${v}';
+               document.getElementById('uje-cim').value='${item}'">${item}</div>`
+  ).join('');
+  document.getElementById('uje-varos').value = v;
+  document.getElementById('uje-cim').value   = items[0];
+  toast('Keresés kész', 'TÉRKÉP');
+}
+
+window.ujeSetKoord = function() {
+  const lat = parseFloat(document.getElementById('uje-lat').value);
+  const lng = parseFloat(document.getElementById('uje-lng').value);
+  if (isNaN(lat)||isNaN(lng)) { toast('Érvénytelen koordináta','HIBA'); return; }
+  document.getElementById('uje-gps-txt').textContent = lat.toFixed(4)+', '+lng.toFixed(4);
+  if (window._maps['uje']) {
+    window._maps['uje'].setView([lat,lng],15);
+    if (_ujeMarker) window._maps['uje'].removeLayer(_ujeMarker);
+    _ujeMarker = L.marker([lat,lng],{icon:mkFire(18)}).addTo(window._maps['uje']);
+  }
+}
+
+window.ujeRogzit = async function() {
+  const adat = getUjeAdat();
+  await rogzitEsemeny(adat);
+  go('fo');
+}
+
+window.ujeRogzitRiaszt = async function() {
+  const adat = getUjeAdat();
+  const id = await rogzitEsemeny(adat);
+  if (id) { go('fo'); setTimeout(()=>megnyitRiasztasModal(id), 400); }
+}
+
+function getUjeAdat() {
+  return {
+    bejelento_nev:    document.getElementById('uje-bejelnev').value,
+    bejelento_tel:    document.getElementById('uje-tel').value,
+    helyszin_varos:   document.getElementById('uje-varos').value,
+    helyszin_cim:     document.getElementById('uje-cim').value,
+    helyszin_keresztezes: document.getElementById('uje-kereszt').value,
+    gps_lat: parseFloat(document.getElementById('uje-lat').value)||null,
+    gps_lng: parseFloat(document.getElementById('uje-lng').value)||null,
+    jelleg:      document.getElementById('uje-jelleg').value,
+    jelleg_kat1: document.getElementById('uje-kat1').value,
+    jelleg_kat2: document.getElementById('uje-kat2').value,
+    jelleg_kat3: document.getElementById('uje-kat3').value,
+    jelleg_kat4: document.getElementById('uje-kat4').value,
+    szemelyi_serules: document.getElementById('uje-serules').value==='1',
+    eletveszer:       document.getElementById('uje-eletv').value==='1',
+    mit_veszelyeztet: document.getElementById('uje-vesz').value,
+    megkul_jelzes:    document.getElementById('uje-megkul').value==='1',
+    riasztasi_fokozat: document.getElementById('uje-fok').value,
+    leiras: document.getElementById('uje-leiras').value,
+  };
+}
+
+async function rogzitEsemeny(adat) {
+  const szam = await ujEsemenySzam();
+  const ref = await addDoc(collection(db,'esemenyek'), {
+    ...adat,
+    esemeny_szam: szam,
+    allapot: 'aktiv',
+    letrehozta_id: window._user?.id,
+    letrehozta_nev: window._user?.nev,
+    letrehozva: serverTimestamp(),
+    frissitve:  serverTimestamp(),
+  });
+  await addDoc(collection(db,'naplo'), { esemeny_id:ref.id, tipus:'rendszer', szoveg:`Esemény rögzítve: ${szam}`, felhasznalo_nev:window._user?.nev, letrehozva:serverTimestamp() });
+  toast(`Esemény rögzítve: ${szam}`, 'RENDSZER');
+  window._kivalasztottEsemenyId = ref.id;
+  return ref.id;
+}
+
+// ── SZEREK OLDAL ─────────────────────────────────────────────
+async function renderSzerekOldal() {
+  const el = document.getElementById('szerek-tartalom');
+  if (!el) return;
+  const szerek = window._szerek || [];
+
+  const csop = {};
+  szerek.forEach(s => { if(!csop[s.allomas_nev]) csop[s.allomas_nev]=[]; csop[s.allomas_nev].push(s); });
+
+  const allapotNev = { laktanyaban:'LAKTANYÁBAN',riaszthato:'RIASZTHATÓ',vonulasban:'VONULÁSBAN',helyszinen:'HELYSZÍNEN',visszaindult:'VISSZAINDULT',muszakihiba:'M. HIBÁS',nemElerheto:'NEM ELÉRHETŐ' };
+  const allapotSor = { laktanyaban:'rg',vonulasban:'ro',helyszinen:'ro',visszaindult:'ry',muszakihiba:'rr',nemElerheto:'rr' };
+
+  el.innerHTML = Object.entries(csop).map(([nev,s]) => `
+    <div style="background:#003399;border:1px solid #0055cc;border-radius:2px;margin-bottom:12px;overflow:hidden">
+      <div style="background:#003399;color:#ffff99;font-weight:bold;font-size:12px;padding:5px 10px;text-align:center;border-bottom:1px solid #0055cc;letter-spacing:.8px">${nev}</div>
+      <div style="background:#d0d8e8;padding:4px">
+        <table class="tbl">
+          <thead><tr><th>Hívónév</th><th>Típus</th><th>Rendszám</th><th>Rádió</th><th>Személyzet</th><th>Víz/Mag</th><th>Állapot</th><th>Módosítás</th></tr></thead>
+          <tbody>
+            ${s.map(sz=>`
+              <tr class="${allapotSor[sz.allapot]||''}">
+                <td><b>${sz.hivonev}</b></td>
+                <td style="font-size:10px">${sz.tipus}</td>
+                <td>${sz.rendszam||'–'}</td>
+                <td>${sz.hivoszam||'–'}</td>
+                <td>${sz.szemelyzet_fo} fő</td>
+                <td>${sz.viz_liter?sz.viz_liter+'L':(sz.mentesi_mag_m?sz.mentesi_mag_m+'m':'–')}</td>
+                <td><b>${allapotNev[sz.allapot]||sz.allapot}</b></td>
+                <td>
+                  <select class="fs" style="font-size:10px" onchange="szerAllapotValtas('${sz.id}',this.value,this)">
+                    <option value="laktanyaban"${sz.allapot==='laktanyaban'?' selected':''}>Laktanyában</option>
+                    <option value="riaszthato"${sz.allapot==='riaszthato'?' selected':''}>Riasztható</option>
+                    <option value="vonulasban"${sz.allapot==='vonulasban'?' selected':''}>Vonulásban</option>
+                    <option value="helyszinen"${sz.allapot==='helyszinen'?' selected':''}>Helyszínen</option>
+                    <option value="visszaindult"${sz.allapot==='visszaindult'?' selected':''}>Visszaindult</option>
+                    <option value="muszakihiba"${sz.allapot==='muszakihiba'?' selected':''}>Műszaki hiba</option>
+                    <option value="nemElerheto"${sz.allapot==='nemElerheto'?' selected':''}>Nem elérhető</option>
+                  </select>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `).join('');
+}
+
+window.szerAllapotValtas = async function(id, allapot) {
+  await updateDoc(doc(db,'szerek',id), { allapot });
+  toast('Szer állapota frissítve', 'SZEREK');
+}
+
+// ── RIASZTÁSI LAP ─────────────────────────────────────────────
+async function renderRiasztasiLap() {
+  const el = document.getElementById('rl-tartalom');
+  if (!el) return;
+  const id = window._kivalasztottEsemenyId;
+  if (!id) { el.innerHTML='<div class="ld">Nincs kiválasztott esemény</div>'; return; }
+
+  const snap = await getDoc(doc(db,'esemenyek',id));
+  if (!snap.exists()) return;
+  const e = { id:snap.id, ...snap.data() };
+
+  document.getElementById('rl-szam').textContent = e.esemeny_szam;
+
+  if (!window._maps['rl']) {
+    window._maps['rl'] = L.map('rl-map',{zoomControl:false,scrollWheelZoom:false}).setView([e.gps_lat||46.253,e.gps_lng||20.141],14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'©OSM'}).addTo(window._maps['rl']);
+  }
+  if (e.gps_lat) {
+    window._maps['rl'].setView([e.gps_lat,e.gps_lng],15);
+    L.marker([e.gps_lat,e.gps_lng],{icon:mkFire(20)}).addTo(window._maps['rl']);
+  }
+
+  const rSnap = await getDocs(query(collection(db,'riasztasok'),where('esemeny_id','==',id),orderBy('riasztva_ido','asc')));
+  const riasztasok = rSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const allapotNev = {kuldve:'Küldve',nyugtazva:'Nyugtázva',vonulasban:'Vonulásban',helyszinen:'Helyszínen',visszaindult:'Visszaindult',lezarva:'Lezárva'};
+
+  el.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      ${[['Település',e.helyszin_varos||'–'],['Cím',e.helyszin_cim||'–'],
+         ['Jelzés dátuma',e.letrehozva?.toDate?e.letrehozva.toDate().toLocaleString('hu-HU'):'–'],
+         ['Káreset fajtája',e.jelleg||'–'],['Kategória I.',e.jelleg_kat1||'–'],
+         ['Kategória II.',e.jelleg_kat2||'–'],['Kategória III.',e.jelleg_kat3||'–'],
+         ['Kategória IV.',e.jelleg_kat4||'–'],['Leírás',e.leiras||'–'],
+         ['Bejelentő',`${e.bejelento_nev||'–'}<br>${e.bejelento_tel||''}`],
+         ['Riasztási fokozat',`<b>${e.riasztasi_fokozat||'–'}</b>`],
+         ['Életveszély',`<b style="color:${e.eletveszer?'#cc0000':'#006600'}">${e.eletveszer?'IGEN':'NEM'}</b>`]
+      ].map(([k,v])=>`<tr><td style="padding:4px 10px;border-bottom:1px solid #ccd;font-weight:bold;color:#003399;min-width:160px;background:#d0d8f0">${k}:</td><td style="padding:4px 10px;border-bottom:1px solid #ccd">${v}</td></tr>`).join('')}
+    </table>
+    <div style="background:#003399;color:#ffff99;font-size:10px;font-weight:bold;padding:2px 8px;margin-top:4px">RIASZTOTT SZEREK</div>
+    <table class="tbl" style="font-size:10px">
+      <thead><tr><th>Állomás</th><th>Hívónév</th><th>Állapot</th><th>Riasztva</th><th>Indult</th><th>Érkezett</th></tr></thead>
+      <tbody>
+        ${riasztasok.map(r=>`
+          <tr>
+            <td>${r.allomas_nev}</td><td><b>${r.szer_hivonev}</b></td>
+            <td><b>${allapotNev[r.allapot]||r.allapot}</b></td>
+            <td class="tc">${r.riasztva_ido?.toDate?r.riasztva_ido.toDate().toTimeString().slice(0,5):'–'}</td>
+            <td class="tc">${r.indulas_ido?.toDate?r.indulas_ido.toDate().toTimeString().slice(0,5):'–'}</td>
+            <td class="tc">${r.kiekerzes_ido?.toDate?r.kiekerzes_ido.toDate().toTimeString().slice(0,5):'–'}</td>
+          </tr>
+        `).join('')||'<tr><td colspan="6" style="text-align:center;color:#666">Nincs riasztott szer</td></tr>'}
+      </tbody>
+    </table>
+    <div style="padding:8px;display:flex;gap:6px;background:#c8d0e0">
+      <button class="btn bb" onclick="window.print()">🖨 NYOMTATÁS</button>
+      <button class="btn bgr" onclick="go('fo')">← VISSZA</button>
+    </div>
+  `;
+}
+
+// ── SZERÁLLAPOT OLDAL ─────────────────────────────────────────
+function renderSzerallapot() {
+  const el = document.getElementById('sa-tartalom');
+  if (!el) return;
+  const szerek = window._szerek || [];
+
+  const csop = {};
+  szerek.forEach(s => {
+    if (!csop[s.allomas_nev]) csop[s.allomas_nev] = [];
+    csop[s.allomas_nev].push(s);
+  });
+
+  const chipCls = { laktanyaban:'cl',vonulasban:'cv',helyszinen:'ch',visszaindult:'cvi',muszakihiba:'cm',nemElerheto:'cn',riaszthato:'cr2' };
+  const allapotNev = { laktanyaban:'Laktanyában',riaszthato:'Riasztható',vonulasban:'Vonulásban ❗',helyszinen:'Helyszínen 🔥',visszaindult:'Visszaindult',muszakihiba:'M. Hibás',nemElerheto:'Nem elérhető' };
+
+  el.innerHTML = Object.entries(csop).map(([nev,s]) => `
+    <div style="background:#b0c8e8;border:2px solid #003399;border-radius:3px;overflow:hidden">
+      <div style="background:#003399;color:#ffff99;font-weight:bold;font-size:11px;padding:4px 10px;text-align:center">${nev}</div>
+      <div style="padding:5px;display:flex;flex-direction:column;gap:2px">
+        ${s.map(sz=>`
+          <div class="chip ${chipCls[sz.allapot]||'cn'}">
+            <span>${sz.hivonev} (${sz.szemelyzet_fo} fő)</span>
+            <span style="font-size:10px">${allapotNev[sz.allapot]||sz.allapot}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── ÁLLOMÁS DISZPÉCSER ────────────────────────────────────────
+function renderAllomasRiasztasok() {
+  const el = document.getElementById('riasztas-lista');
+  if (!el) return;
+  const riasztasok = window._allomasRiasztasok || [];
+
+  document.getElementById('rias-db').textContent  = riasztasok.length;
+  document.getElementById('sb-rias-db').textContent = riasztasok.length;
+
+  if (riasztasok.length === 0) {
+    el.innerHTML = '<div style="padding:30px;text-align:center;color:#667;font-size:13px">Nincs aktív riasztás</div>';
+    return;
+  }
+
+  const allapotSzin = { kuldve:'#cc0000',nyugtazva:'#aa8800',vonulasban:'#cc6600',helyszinen:'#009900',visszaindult:'#666' };
+  const allapotNev  = { kuldve:'KÜLDVE',nyugtazva:'NYUGTÁZVA',vonulasban:'VONULÁSBAN',helyszinen:'HELYSZÍNEN',visszaindult:'VISSZAINDULT' };
+
+  el.innerHTML = riasztasok.map(r => `
+    <div class="rc${r.allapot==='kuldve'?' uj':''}">
+      <div class="rch" style="background:${allapotSzin[r.allapot]||'#444'}">
+        <span>${r.esemeny_szam} – <b>${r.szer_hivonev}</b></span>
+        <span style="font-size:10px">${allapotNev[r.allapot]||r.allapot}</span>
+      </div>
+      <div class="rcb">
+        <div><div class="rc-lbl">Helyszín</div>${r.helyszin_cim||'–'}, ${r.helyszin_varos||''}</div>
+        <div><div class="rc-lbl">Típus</div>${r.jelleg||'–'}</div>
+        <div><div class="rc-lbl">Fokozat</div><b>${r.riasztasi_fokozat||'–'}</b></div>
+        <div><div class="rc-lbl">Életveszély</div><b style="color:${r.eletveszer?'#cc0000':'#006600'}">${r.eletveszer?'IGEN':'NEM'}</b></div>
+        <div style="grid-column:span 2"><div class="rc-lbl">Leírás</div>${r.leiras||'–'}</div>
+        <div><div class="rc-lbl">Riasztva</div>${r.riasztva_ido?.toDate?r.riasztva_ido.toDate().toTimeString().slice(0,5):'–'}</div>
+      </div>
+      <div class="rca">
+        ${r.allapot==='kuldve'?`<button class="btn by" onclick="allomasAllapot('${r.id}','${r.szer_id}','nyugtazva')">✓ NYUGTÁZ</button>`:''}
+        ${['kuldve','nyugtazva'].includes(r.allapot)?`<button class="btn bo" onclick="allomasAllapot('${r.id}','${r.szer_id}','vonulasban')">VONULÁSBAN</button>`:''}
+        ${r.allapot==='vonulasban'?`<button class="btn bg" onclick="allomasAllapot('${r.id}','${r.szer_id}','helyszinen')">HELYSZÍNEN</button>`:''}
+        ${r.allapot==='helyszinen'?`<button class="btn bb" onclick="allomasAllapot('${r.id}','${r.szer_id}','visszaindult')">VISSZAINDULT</button>`:''}
+        ${r.allapot==='visszaindult'?`<button class="btn bgr" onclick="allomasAllapot('${r.id}','${r.szer_id}','lezarva')">LEZÁRÁS</button>`:''}
+      </div>
+    </div>
+  `).join('');
+
+  // Értesítő badge ha új riasztás van
+  if (riasztasok.some(r=>r.allapot==='kuldve')) {
+    const badge = document.getElementById('rias-badge');
+    badge.style.display = 'block';
+    setTimeout(()=>badge.style.display='none', 8000);
+  }
+}
+
+window.allomasAllapot = async function(riasztasId, szerId, allapot) {
+  const idoMezok = { nyugtazva:'nyugtazva_ido', vonulasban:'indulas_ido', helyszinen:'kiekerzes_ido', visszaindult:'visszaindulas_ido', lezarva:'visszaerkezes_ido' };
+  const frissites = { allapot };
+  if (idoMezok[allapot]) frissites[idoMezok[allapot]] = serverTimestamp();
+
+  await updateDoc(doc(db,'riasztasok',riasztasId), frissites);
+
+  // Szer állapot szinkron
+  const szerAllapot = { nyugtazva:'vonulasban', vonulasban:'vonulasban', helyszinen:'helyszinen', visszaindult:'visszaindult', lezarva:'laktanyaban' };
+  if (szerAllapot[allapot]) await updateDoc(doc(db,'szerek',szerId), { allapot:szerAllapot[allapot] });
+
+  toast(`Állapot: ${allapot}`, 'RIASZTÁS');
+}
+
+async function betoltAllomasSzerek() {
+  const user = window._user;
+  if (!user?.allomas_id) return;
+  // Valós idejű figyelés a szerek kollekcióban már fut (figyeleSzerek)
+  // Csak a renderAllomasSzerek-et kell meghívni
+  renderAllomasSzerek();
+}
+
+function renderAllomasSzerek() {
+  const el = document.getElementById('allomas-sajat-szerek');
+  if (!el) return;
+  const user = window._user;
+  const szerek = (window._szerek||[]).filter(s=>s.allomas_id===user?.allomas_id);
+
+  const chipCls = { laktanyaban:'cl',vonulasban:'cv',helyszinen:'ch',visszaindult:'cvi',muszakihiba:'cm',nemElerheto:'cn',riaszthato:'cr2' };
+  const allapotNev = { laktanyaban:'Laktanyában',riaszthato:'Riasztható',vonulasban:'Vonulásban',helyszinen:'Helyszínen',visszaindult:'Visszaindult',muszakihiba:'M. Hibás',nemElerheto:'Nem elérhető' };
+
+  el.innerHTML = szerek.map(s => `
+    <div class="chip ${chipCls[s.allapot]||'cn'}" style="margin-bottom:5px;flex-direction:column;align-items:stretch;gap:4px">
+      <div style="display:flex;justify-content:space-between">
+        <b>${s.hivonev}</b>
+        <span style="font-size:10px;font-weight:normal">${allapotNev[s.allapot]||s.allapot}</span>
+      </div>
+      <div style="font-size:10px;font-weight:normal;opacity:.85">${s.tipus}</div>
+      <select style="font-size:10px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;padding:2px 4px;border-radius:2px;font-family:Arial"
+        onchange="szerAllapotValtas('${s.id}',this.value)">
+        <option value="laktanyaban"${s.allapot==='laktanyaban'?' selected':''}>Laktanyában</option>
+        <option value="vonulasban"${s.allapot==='vonulasban'?' selected':''}>Vonulásban</option>
+        <option value="helyszinen"${s.allapot==='helyszinen'?' selected':''}>Helyszínen</option>
+        <option value="visszaindult"${s.allapot==='visszaindult'?' selected':''}>Visszaindult</option>
+        <option value="muszakihiba"${s.allapot==='muszakihiba'?' selected':''}>Műszaki hiba</option>
+        <option value="nemElerheto"${s.allapot==='nemElerheto'?' selected':''}>Nem elérhető</option>
+      </select>
+    </div>
+  `).join('') || '<div style="color:#aac;font-size:11px;padding:8px">Nincsenek szerek</div>';
+}
+
+// ── LEAFLET ───────────────────────────────────────────────────
+function mkFire(s) {
+  return L.divIcon({ className:'', html:`<div style="width:${s}px;height:${s}px;position:relative"><div style="position:absolute;width:100%;height:${Math.round(s/5)}px;background:#cc0000;top:${Math.round(s/2-s/10)}px;transform:rotate(45deg);border-radius:1px"></div><div style="position:absolute;width:100%;height:${Math.round(s/5)}px;background:#cc0000;top:${Math.round(s/2-s/10)}px;transform:rotate(-45deg);border-radius:1px"></div></div>`, iconSize:[s,s], iconAnchor:[s/2,s/2] });
+}
+
+// ── INDÍTÁS ───────────────────────────────────────────────────
+initData();
+</script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:Arial,sans-serif;font-size:12px;overflow:hidden;background:#003399}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:#5577aa;border-radius:3px}
+.page{display:none;flex-direction:column;height:100vh;overflow:hidden}
+.page.active{display:flex}
+/* LOGIN */
+#pg-login{background:#ffffcc;align-items:center;justify-content:center}
+.lbox{display:flex;flex-direction:column;align-items:center;width:360px}
+.ltitle{font-size:22px;font-weight:bold;color:#000;margin-bottom:4px}
+.lsub{font-size:11px;color:#666;margin-bottom:24px;text-align:center;line-height:1.6}
+.lform{width:100%;display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
+.lrow{display:flex;align-items:center;gap:8px}
+.lrow label{font-size:13px;font-weight:bold;min-width:145px;text-align:right}
+.lrow input{padding:4px 7px;border:2px inset #bbb;font-size:13px;width:185px;font-family:Arial;background:#fff}
+.lrow input:focus{outline:none;border-color:#0044cc}
+.lbtn{display:block;margin:0 auto;padding:5px 28px;font-size:13px;cursor:pointer;background:#e0e0e0;border:2px outset #bbb;font-family:Arial}
+.lbtn:hover{background:#d0d0d0}
+.lerr{color:#cc0000;font-size:12px;text-align:center;min-height:18px;margin-top:3px}
+.lshield{font-size:110px;text-align:center;margin-top:6px}
+.lhint{font-size:10px;color:#999;text-align:center;margin-top:8px;line-height:1.8}
+/* NAVBAR */
+.navbar{background:#003399;border-bottom:3px solid #cc0000;display:flex;align-items:center;padding:0 8px;height:30px;flex-shrink:0}
+.nav-logo{color:#ffff00;font-size:14px;font-weight:bold;letter-spacing:3px;margin-right:12px;cursor:pointer;white-space:nowrap}
+.nav-tabs{display:flex;gap:2px;flex:1;overflow-x:auto}
+.nav-tabs::-webkit-scrollbar{height:0}
+.ntab{padding:4px 11px;font-size:11px;font-weight:bold;cursor:pointer;background:#b0b8cc;border:1px solid #889;border-radius:2px 2px 0 0;color:#003399;white-space:nowrap;transition:background .12s;flex-shrink:0}
+.ntab:hover{background:#ccd4e4}
+.ntab.active{background:#ffcc00;color:#003399;border-color:#cc9900}
+.nav-right{display:flex;align-items:center;gap:10px;margin-left:auto;flex-shrink:0;padding-left:8px}
+.nav-clk{color:#00ffcc;font-family:'Courier New',monospace;font-size:13px;font-weight:bold}
+.nav-usr{color:#aaccff;font-size:10px;max-width:160px;line-height:1.3}
+.nav-out{background:#880000;color:#fff;border:none;padding:2px 8px;font-size:10px;cursor:pointer;border-radius:2px;font-family:Arial}
+.nav-out:hover{background:#aa0000}
+.pbody{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.sb{background:#001a66;color:#aaccff;font-size:10px;padding:2px 10px;display:flex;align-items:center;gap:14px;border-top:1px solid #0044cc;height:20px;flex-shrink:0}
+.sbi{display:flex;gap:4px}.sbl{color:#6688bb}.sbv{color:#ffff99;font-weight:bold}
+.shdr{background:#003399;color:#ffff99;font-weight:bold;font-size:11px;padding:3px 8px;letter-spacing:.4px;flex-shrink:0;display:flex;justify-content:space-between;align-items:center}
+.secl{background:#003399;color:#ffff99;font-size:10px;font-weight:bold;padding:2px 7px;margin:7px 0 5px}
+.btn{padding:3px 10px;font-size:11px;font-weight:bold;cursor:pointer;border-radius:2px;font-family:Arial;border:1px solid}
+.btn:hover{filter:brightness(1.1)}
+.bb{background:#003399;color:#fff;border-color:#0055cc}
+.bg{background:#006600;color:#fff;border-color:#009900}
+.br{background:#cc0000;color:#fff;border-color:#990000}
+.by{background:#ffaa00;color:#003399;border-color:#cc8800}
+.bo{background:#cc6600;color:#fff;border-color:#994400}
+.bgr{background:#c0c4cc;color:#003;border-color:#889}
+.bph{background:#ffcc00;color:#003399;border:none;padding:1px 8px;font-size:10px;font-weight:bold;cursor:pointer;border-radius:2px;font-family:Arial}
+.fi{padding:2px 5px;border:1px solid #889;background:#fff;font-size:11px;font-family:Arial;outline:none}
+.fi:focus{border-color:#0044cc}
+.fs{padding:2px 4px;border:1px solid #889;background:#fff;font-size:11px;font-family:Arial;outline:none}
+.fr{display:flex;align-items:center;gap:5px;margin-bottom:4px}
+.fl{color:#003399;font-size:11px;font-weight:bold;min-width:115px;flex-shrink:0}
+.flw{color:#fff;font-size:11px;font-weight:bold;min-width:148px;flex-shrink:0}
+.gps-chip{background:#003399;color:#00ff88;font-family:'Courier New',monospace;font-size:10px;padding:2px 7px;border-radius:2px}
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl th{background:#003399;color:#ffff99;padding:3px 6px;border:1px solid #0055cc;font-weight:bold;white-space:nowrap;position:sticky;top:0;z-index:1}
+.tbl td{padding:3px 6px;border:1px solid #bbc;vertical-align:middle}
+.rg td{background:#ccffcc}.ry td{background:#fffacc}.rr td{background:#ffcccc}.rb td{background:#cce4ff}.ro td{background:#ffe4cc}
+.tc{font-family:'Courier New',monospace;font-size:10px;color:#003399;font-weight:bold}
+.maptabs{display:flex;gap:2px;padding:2px 4px;background:#c8d4e8;flex-shrink:0;border-bottom:1px solid #889}
+.maptab{padding:2px 10px;font-size:11px;cursor:pointer;background:#b8c4d8;border:1px solid #889;border-radius:2px;color:#003399;font-weight:bold}
+.maptab.sel{background:#003399;color:#fff}
+#toast{position:fixed;bottom:26px;right:14px;z-index:9999;background:#003399;border:2px solid #ffcc00;border-radius:3px;padding:8px 14px;font-size:11px;color:#ffff99;font-weight:bold;box-shadow:0 4px 20px rgba(0,0,0,.6);min-width:200px;opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none}
+#toast.show{opacity:1;transform:translateY(0)}
+#toast .tt{color:#00ffcc;font-size:10px;letter-spacing:1px;margin-bottom:3px}
+#rias-badge{position:fixed;top:38px;right:14px;z-index:9990;background:#cc0000;color:#fff;border-radius:3px;padding:8px 16px;font-size:13px;font-weight:bold;display:none;cursor:pointer;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:5000;display:none;align-items:center;justify-content:center}
+.mbg.open{display:flex}
+.mbox{background:#d8dce8;border:2px solid #003399;border-radius:3px;width:600px;max-height:88vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.6)}
+.mhdr{background:#003399;color:#ffff99;font-weight:bold;font-size:12px;padding:7px 12px;display:flex;justify-content:space-between;align-items:center}
+.mbody{flex:1;overflow-y:auto;padding:12px}
+.mfoot{background:#c0c4d4;border-top:1px solid #aab;padding:7px 12px;display:flex;gap:7px;justify-content:flex-end}
+.cx{background:none;border:none;color:#ffcc00;font-size:18px;cursor:pointer;font-weight:bold}
+.ld{display:flex;align-items:center;justify-content:center;padding:20px;color:#667;font-size:11px;gap:8px}
+.spin{width:16px;height:16px;border:3px solid #ccd;border-top-color:#0044cc;border-radius:50%;animation:spin .8s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ev-card{background:#c8d0e0;border:1px solid #aab;border-left:3px solid #cc0000;padding:8px 10px;margin:6px 8px;cursor:pointer;border-radius:2px;transition:all .12s}
+.ev-card:hover{background:#bbc4d8}
+.ev-card.sel{border-left-color:#00aaff;background:#b8d0e8}
+.ev-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+.ev-szam{font-size:10px;color:#0077aa;font-weight:bold;font-family:'Courier New',monospace}
+.ev-tip{font-size:12px;color:#003399;font-weight:bold;margin-bottom:2px}
+.ev-cim{font-size:10px;color:#445;margin-bottom:4px}
+.ev-foot{display:flex;gap:5px;align-items:center}
+.badge{border-radius:2px;padding:1px 7px;font-size:10px;font-weight:bold}
+.b-red{background:rgba(200,0,0,.15);color:#cc0000;border:1px solid rgba(200,0,0,.3)}
+.b-org{background:rgba(200,100,0,.15);color:#cc6600;border:1px solid rgba(200,100,0,.3)}
+.kb{display:inline-block;padding:2px 9px;font-weight:bold;font-size:11px;border-radius:2px;color:#fff}
+.kI{background:#00aa44}.kII{background:#cc6600}.kIII{background:#cc3300}.kIV{background:#880000}
+.rc{background:#fff8e0;border:2px solid #cc6600;border-radius:3px;margin:8px 10px;overflow:hidden}
+.rc.uj{border-color:#cc0000;background:#fff0f0;animation:pulse 2s infinite}
+.rch{color:#fff;padding:5px 10px;display:flex;justify-content:space-between;align-items:center;font-weight:bold;font-size:11px}
+.rcb{padding:8px 10px;display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px}
+.rc-lbl{color:#666;font-size:10px}
+.rca{padding:6px 10px;border-top:1px solid #ddc;display:flex;gap:5px;flex-wrap:wrap;background:#f8f4e8}
+.chip{display:flex;justify-content:space-between;align-items:center;padding:3px 8px;border-radius:2px;font-size:11px;font-weight:bold;gap:4px;margin-bottom:3px}
+.cl{background:#0055aa;color:#fff}.cv{background:#cc6600;color:#fff}.ch{background:#009900;color:#fff}
+.cvi{background:#aa8800;color:#fff}.cm{background:#880000;color:#fff}.cn{background:#444;color:#fff}.cr2{background:#006600;color:#fff}
+</style>
+</head>
+<body>
+
+<!-- ════ LOGIN ════ -->
+<div class="page active" id="pg-login">
+  <div class="lbox">
+    <div class="ltitle">BM OKF PAJZS</div>
+    <div class="lsub">Csongrád-Csanád Megyei Katasztrófavédelmi Igazgatóság<br>Műveleti Irányítási Rendszer</div>
+    <div class="lform">
+      <div class="lrow"><label>Felhasználónév:</label><input type="text" id="lu" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('lp').focus()"></div>
+      <div class="lrow"><label>Jelszó:</label><input type="password" id="lp" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <button class="lbtn" onclick="doLogin()">Belépés</button>
+      <div class="lerr" id="lerr"></div>
+    </div>
+    <div class="lshield">🛡️</div>
+    <div class="lhint">
+      Fő diszpécser: <b>diszpecser1</b> / pajzs1234<br>
+      Szeged: <b>szeged</b> / szeged123 · Hódmező: <b>hodmezo</b> / hodmezo123<br>
+      Makó: <b>mako</b> / mako123 · Szentes: <b>szentes</b> / szentes123
+    </div>
+  </div>
+</div>
+
+<!-- ════ DISZPÉCSER – FŐKÉPERNYŐ ════ -->
+<div class="page" id="pg-fo">
+  <nav class="navbar">
+    <span class="nav-logo" onclick="go('fo')">PAJZS</span>
+    <div class="nav-tabs" id="tabs-fo"></div>
+    <div class="nav-right"><span class="nav-usr" id="nu-fo">–</span><span class="nav-clk" id="clk-fo">00:00:00</span><button class="nav-out" onclick="doLogout()">KILÉPÉS</button></div>
+  </nav>
+  <div class="pbody">
+    <div style="display:grid;grid-template-columns:295px 1fr 278px;flex:1;overflow:hidden">
+      <!-- BAL -->
+      <div style="display:flex;flex-direction:column;border-right:2px solid #0055cc;overflow:hidden;background:#c8d0e0">
+        <div class="shdr">AKTÍV ESEMÉNYEK <span id="ev-db" style="background:#cc0000;color:#fff;border-radius:2px;padding:1px 6px;font-size:10px;margin-left:4px">0</span>
+          <button class="bph" onclick="go('uj-esemeny')">+ ÚJ ESEMÉNY</button>
+        </div>
+        <div style="padding:5px 8px 0"><input class="fi" style="width:100%" placeholder="Keresés…" oninput="szurEsemenyek(this.value)"></div>
+        <div style="flex:1;overflow-y:auto" id="ev-lista"><div class="ld"><span class="spin"></span> Betöltés…</div></div>
+        <div style="background:#c0c8d4;padding:4px;border-top:1px solid #aab;display:flex;gap:4px">
+          <select class="fs" id="ev-szuro" onchange="figyeleEsemenyek()">
+            <option value="aktiv">Aktív</option><option value="kezelt">Kezelt</option><option value="lezart">Lezárt</option><option value="">Összes</option>
+          </select>
+          <button class="btn bb" onclick="figyeleEsemenyek()">FRISSÍT</button>
+        </div>
+      </div>
+      <!-- KÖZÉP -->
+      <div style="display:flex;flex-direction:column;border-right:2px solid #0055cc;overflow:hidden;background:#c8d0e0">
+        <div class="shdr">
+          <span>ADATLAP – <span id="kp-szam" style="color:#00aacc;font-family:'Courier New',monospace">–</span></span>
+          <div style="display:flex;gap:4px">
+            <button class="bph" onclick="go('riasztasi-lap')">ADATLAP ↗</button>
+            <button class="bph" onclick="mentEsemeny()">MENTÉS</button>
+          </div>
+        </div>
+        <div style="flex:1;overflow-y:auto" id="kp-tartalom"><div class="ld" style="margin-top:40px">Válasszon eseményt a listából</div></div>
+      </div>
+      <!-- JOBB -->
+      <div style="display:flex;flex-direction:column;overflow:hidden;background:#c8d0e0">
+        <div class="shdr">SZEREK <button class="bph" onclick="go('szerek')">ÖSSZES ↗</button></div>
+        <div style="flex:1;overflow-y:auto" id="jobb-szerek"><div class="ld"><span class="spin"></span></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="sb">
+    <div class="sbi"><span class="sbl">ESEMÉNY:</span><span class="sbv" id="sb-ev">–</span></div>
+    <div class="sbi"><span class="sbl">AKTÍV:</span><span class="sbv" id="sb-aktiv" style="color:#ff8800">0</span></div>
+    <div class="sbi"><span class="sbl">VONULÓ:</span><span class="sbv" id="sb-vonulo" style="color:#ffaa00">0</span></div>
+    <div class="sbi"><span class="sbl">FELHASZNÁLÓ:</span><span class="sbv" id="sb-user-fo">–</span></div>
+    <div class="sbi" style="margin-left:auto"><span class="sbl">RENDSZER:</span><span class="sbv" style="color:#00ff88">ONLINE</span></div>
+  </div>
+</div>
+
+<!-- ════ ÚJ ESEMÉNY ════ -->
+<div class="page" id="pg-uj-esemeny">
+  <nav class="navbar">
+    <span class="nav-logo" onclick="go('fo')">PAJZS</span>
+    <div class="nav-tabs" id="tabs-uje"></div>
+    <div class="nav-right"><span class="nav-usr" id="nu-uje">–</span><span class="nav-clk" id="clk-uje">00:00:00</span><button class="nav-out" onclick="doLogout()">KILÉPÉS</button></div>
+  </nav>
+  <div class="pbody">
+    <div style="background:#aa0000;color:#fff;font-size:13px;font-weight:bold;text-align:center;padding:5px;letter-spacing:2px;flex-shrink:0">ÚJ KÁRESEMÉNY FELVÉTELE</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;flex:1;overflow:hidden">
+      <div style="display:flex;flex-direction:column;border-right:2px solid #0055cc;overflow:hidden;background:#003399">
+        <div class="maptabs" style="background:#002a80">
+          <div class="maptab sel" id="ujet-cim" onclick="ujeTab('cim',this)">Címkeresés</div>
+          <div class="maptab" id="ujet-koo" onclick="ujeTab('koo',this)">Koordináták</div>
+        </div>
+        <div style="flex:1;position:relative;overflow:hidden">
+          <div id="uje-map" style="width:100%;height:100%"></div>
+          <div id="ujep-cim" style="position:absolute;top:0;left:0;z-index:600;background:rgba(240,244,252,.97);border:1px solid #889;padding:12px;min-width:260px;max-width:320px;box-shadow:2px 2px 8px rgba(0,0,0,.3)">
+            <div style="font-weight:bold;font-size:12px;color:#003399;margin-bottom:8px;display:flex;justify-content:space-between">Címkeresés <span onclick="document.getElementById('ujep-cim').style.display='none'" style="cursor:pointer;color:#666;font-size:16px">×</span></div>
+            <div class="fr"><span style="min-width:70px;font-size:11px;font-weight:bold;color:#003399">Város</span><input class="fi" id="us-varos" style="flex:1" value="Szeged"></div>
+            <div class="fr"><span style="min-width:70px;font-size:11px;font-weight:bold;color:#003399">Cím</span><input class="fi" id="us-cim-inp" style="flex:1" placeholder="Utca, házszám"></div>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button class="btn bb" onclick="ujeKeres()">Keresés</button>
+              <button class="btn bgr" onclick="document.getElementById('us-cim-inp').value='';document.getElementById('uje-found').innerHTML=''">Törlés</button>
+            </div>
+            <div style="font-weight:bold;font-size:11px;color:#003399;margin:8px 0 3px">Találati lista</div>
+            <div id="uje-found" style="background:#fff;border:1px solid #889;max-height:130px;overflow-y:auto"></div>
+          </div>
+          <div id="ujep-koo" style="display:none;position:absolute;top:0;left:0;z-index:600;background:rgba(240,244,252,.97);border:1px solid #889;padding:12px;min-width:240px;box-shadow:2px 2px 8px rgba(0,0,0,.3)">
+            <div style="font-weight:bold;font-size:12px;color:#003399;margin-bottom:8px">Koordináták</div>
+            <div class="fr"><span style="min-width:70px;font-size:11px;color:#003399;font-weight:bold">WGS Lat</span><input class="fi" id="uje-lat" style="flex:1" placeholder="46.xxxxx"></div>
+            <div class="fr"><span style="min-width:70px;font-size:11px;color:#003399;font-weight:bold">WGS Long</span><input class="fi" id="uje-lng" style="flex:1" placeholder="20.xxxxx"></div>
+            <button class="btn bb" style="margin-top:6px" onclick="ujeSetKoord()">Beállítás</button>
+            <p style="font-size:10px;color:#666;margin-top:6px">Vagy kattintson a térképre!</p>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;overflow:hidden;background:#003399">
+        <div style="flex:1;overflow-y:auto;padding:8px 10px">
+          <div class="secl">BEJELENTŐ ADATAI</div>
+          <div class="fr"><span class="flw">Bejelentő neve:</span><input class="fi" id="uje-bejelnev" style="flex:1"></div>
+          <div class="fr"><span class="flw">Telefonszám:</span><input class="fi" id="uje-tel" style="flex:1"></div>
+          <div class="secl">HELYSZÍN</div>
+          <div class="fr"><span class="flw">Város:</span><input class="fi" id="uje-varos" style="flex:1" value="Szeged"></div>
+          <div class="fr"><span class="flw">Cím:</span><input class="fi" id="uje-cim" style="flex:1"></div>
+          <div class="fr"><span class="flw">Kereszteződés:</span><input class="fi" id="uje-kereszt" style="flex:1"></div>
+          <div class="fr"><span class="flw">GPS:</span><span class="gps-chip" id="uje-gps-txt">– kattintson a térképre</span></div>
+          <div class="secl">ESEMÉNY ADATAI</div>
+          <div class="fr"><span class="flw">Káreset fajtája:</span>
+            <select class="fs" id="uje-jelleg" style="flex:1"><option value="">– válasszon –</option><option>Tűzeset</option><option>Műszaki mentés</option><option>Természeti csapás</option><option>Veszélyes anyag</option></select>
+          </div>
+          <div class="fr"><span class="flw">Kategória I.:</span>
+            <select class="fs" id="uje-kat1" style="flex:1"><option value="">–</option><option>Lakástűz</option><option>Közlekedési baleset</option><option>Ipari tűz</option><option>Erdőtűz</option></select>
+          </div>
+          <div class="fr"><span class="flw">Kategória II.:</span>
+            <select class="fs" id="uje-kat2" style="flex:1"><option value="">–</option><option>Emeletes épület</option><option>Földszintes épület</option><option>Közúti</option><option>Vasúti</option></select>
+          </div>
+          <div class="fr"><span class="flw">Kategória III.:</span>
+            <select class="fs" id="uje-kat3" style="flex:1"><option value="">–</option><option>Egy lakás</option><option>Lépcsőház</option><option>Személygépkocsi</option><option>Tehergépjármű</option></select>
+          </div>
+          <div class="fr"><span class="flw">Kategória IV.:</span>
+            <select class="fs" id="uje-kat4" style="flex:1"><option value="">–</option><option>Ég</option><option>Füstölés</option><option>Robbanás</option><option>Személy bent rekedt</option></select>
+          </div>
+          <div class="fr"><span class="flw">Személyi sérülés:</span><select class="fs" id="uje-serules" style="flex:1"><option value="0">Nem</option><option value="1">Igen</option></select></div>
+          <div class="fr"><span class="flw">Életveszély:</span><select class="fs" id="uje-eletv" style="max-width:90px"><option value="0">Nem</option><option value="1">Igen</option></select></div>
+          <div class="fr"><span class="flw">Mit veszélyeztet:</span><input class="fi" id="uje-vesz" style="flex:1"></div>
+          <div class="fr"><span class="flw">Megkülönb. jelzés:</span><select class="fs" id="uje-megkul" style="max-width:80px"><option value="1">Igen</option><option value="0">Nem</option></select></div>
+          <div class="fr"><span class="flw">Riasztási fokozat:</span><select class="fs" id="uje-fok" style="max-width:60px"><option>I.</option><option>II.</option><option>III.</option></select></div>
+          <div class="fr" style="align-items:flex-start"><span class="flw">Leírás:</span><textarea class="fi" id="uje-leiras" style="flex:1;height:52px;resize:none"></textarea></div>
+        </div>
+        <div style="background:#001a66;padding:7px 10px;border-top:2px solid #cc0000;display:flex;align-items:center;gap:7px;flex-wrap:wrap;flex-shrink:0">
+          <button class="btn bg" style="margin-left:auto" onclick="ujeRogzit()">ESEMÉNY RÖGZÍTÉSE</button>
+          <button class="btn br" onclick="ujeRogzitRiaszt()">RÖGZÍTÉS + RIASZTÁS</button>
+          <button class="btn bgr" onclick="go('fo')">MÉGSE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="sb"><div class="sbi"><span class="sbv" id="sb-user-uje">–</span></div></div>
+</div>
+
+<!-- ════ SZEREK OLDAL ════ -->
+<div class="page" id="pg-szerek">
+  <nav class="navbar">
+    <span class="nav-logo" onclick="go('fo')">PAJZS</span>
+    <div class="nav-tabs" id="tabs-sk"></div>
+    <div class="nav-right"><span class="nav-usr" id="nu-sk">–</span><span class="nav-clk" id="clk-sk">00:00:00</span><button class="nav-out" onclick="doLogout()">KILÉPÉS</button></div>
+  </nav>
+  <div class="pbody">
+    <div style="flex:1;overflow-y:auto;background:#111122;padding:10px">
+      <div style="color:#ffff00;font-size:15px;font-weight:bold;text-align:center;margin-bottom:10px">SZEREK KEZELÉSE – CSONGRÁD-CSANÁD MEGYE</div>
+      <div id="szerek-tartalom"><div class="ld"><span class="spin"></span> Betöltés…</div></div>
+    </div>
+  </div>
+  <div class="sb"><div class="sbi"><span class="sbv" id="sb-user-sk">–</span></div><div class="sbi" style="margin-left:auto"><span class="sbl">RENDSZER:</span><span class="sbv" style="color:#00ff88">ONLINE</span></div></div>
+</div>
+
+<!-- ════ RIASZTÁSI LAP ════ -->
+<div class="page" id="pg-riasztasi-lap">
+  <nav class="navbar">
+    <span class="nav-logo" onclick="go('fo')">PAJZS</span>
+    <div class="nav-tabs" id="tabs-rl"></div>
+    <div class="nav-right"><span class="nav-usr" id="nu-rl">–</span><span class="nav-clk" id="clk-rl">00:00:00</span><button class="nav-out" onclick="doLogout()">KILÉPÉS</button></div>
+  </nav>
+  <div class="pbody">
+    <div style="background:#003399;color:#ffff99;font-size:12px;font-weight:bold;text-align:center;padding:5px;flex-shrink:0">RIASZTÁSI LAP – <span id="rl-szam" style="color:#00ccff;font-family:'Courier New',monospace">–</span></div>
+    <div style="display:grid;grid-template-columns:1fr 360px;flex:1;overflow:hidden">
+      <div style="display:flex;flex-direction:column;border-right:2px solid #003399;overflow:hidden">
+        <div class="maptabs"><div class="maptab sel">Áttekintő</div></div>
+        <div style="flex:1;position:relative"><div id="rl-map" style="width:100%;height:100%"></div></div>
+      </div>
+      <div style="overflow-y:auto;background:#d8dce8">
+        <div id="rl-tartalom"><div class="ld" style="margin-top:40px"><span class="spin"></span></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="sb"><div class="sbi"><span class="sbv" id="sb-user-rl">–</span></div></div>
+</div>
+
+<!-- ════ SZERÁLLAPOT ════ -->
+<div class="page" id="pg-szerallapot">
+  <nav class="navbar">
+    <span class="nav-logo" onclick="go('fo')">PAJZS</span>
+    <div class="nav-tabs" id="tabs-sa"></div>
+    <div class="nav-right"><span class="nav-usr" id="nu-sa">–</span><span class="nav-clk" id="clk-sa">00:00:00</span><button class="nav-out" onclick="doLogout()">KILÉPÉS</button></div>
+  </nav>
+  <div class="pbody">
+    <div style="flex:1;overflow-y:auto;background:#4488cc;padding:10px">
+      <div style="color:#ffff00;font-size:22px;font-weight:bold;text-align:center;font-family:'Courier New',monospace;letter-spacing:2px;margin-bottom:2px" id="sa-clk">00:00:00</div>
+      <div style="color:#fff;font-size:11px;text-align:center;margin-bottom:10px">Csongrád-Csanád Megyei Katasztrófavédelmi Igazgatóság</div>
+      <div id="sa-tartalom" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px"><div class="ld"><span class="spin"></span></div></div>
+      <div style="margin-top:8px;background:#002266;color:#aaccff;padding:6px 10px;border-radius:3px;font-size:11px;display:flex;gap:10px;flex-wrap:wrap">
+        <b>Jelmagyarázat:</b>
+        <span class="chip cl" style="min-width:auto;padding:1px 8px;font-size:10px">Laktanyában</span>
+        <span class="chip cv" style="min-width:auto;padding:1px 8px;font-size:10px">Vonulásban ❗</span>
+        <span class="chip ch" style="min-width:auto;padding:1px 8px;font-size:10px">Helyszínen 🔥</span>
+        <span class="chip cm" style="min-width:auto;padding:1px 8px;font-size:10px">Műszaki hiba</span>
+        <span class="chip cn" style="min-width:auto;padding:1px 8px;font-size:10px">Nem elérhető</span>
+      </div>
+    </div>
+  </div>
+  <div class="sb"><div class="sbi"><span class="sbv" id="sb-user-sa">–</span></div></div>
+</div>
+
+<!-- ════ ÁLLOMÁS DISZPÉCSER ════ -->
+<div class="page" id="pg-allomas">
+  <nav class="navbar">
+    <span class="nav-logo">PAJZS</span>
+    <span id="allomas-cim" style="color:#ffff00;font-size:11px;font-weight:bold;letter-spacing:1px;margin-left:10px">ÁLLOMÁS</span>
+    <div class="nav-right"><span class="nav-usr" id="nu-allomas">–</span><span class="nav-clk" id="clk-allomas">00:00:00</span><button class="nav-out" onclick="doLogout()">KILÉPÉS</button></div>
+  </nav>
+  <div class="pbody">
+    <div style="display:grid;grid-template-columns:1fr 320px;flex:1;overflow:hidden">
+      <div style="display:flex;flex-direction:column;border-right:2px solid #0055cc;overflow:hidden">
+        <div class="shdr">BEÉRKEZŐ RIASZTÁSOK <span id="rias-db" style="background:#cc0000;color:#fff;border-radius:2px;padding:1px 6px;font-size:10px;margin-left:4px">0</span></div>
+        <div style="flex:1;overflow-y:auto" id="riasztas-lista"><div class="ld">Várakozás riasztásra…</div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;overflow:hidden;background:#d0d8e4">
+        <div class="shdr">SAJÁT SZEREK</div>
+        <div style="flex:1;overflow-y:auto;padding:6px" id="allomas-sajat-szerek"><div class="ld"><span class="spin"></span></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="sb">
+    <div class="sbi"><span class="sbl">ÁLLOMÁS:</span><span class="sbv" id="sb-allomas">–</span></div>
+    <div class="sbi"><span class="sbl">AKTÍV RIASZTÁS:</span><span class="sbv" id="sb-rias-db" style="color:#ff8800">0</span></div>
+    <div class="sbi"><span class="sbl">FELHASZNÁLÓ:</span><span class="sbv" id="sb-user-allomas">–</span></div>
+    <div class="sbi" style="margin-left:auto"><span class="sbl">RENDSZER:</span><span class="sbv" style="color:#00ff88">ONLINE</span></div>
+  </div>
+</div>
+
+<!-- ════ MODAL: Szer riasztás ════ -->
+<div class="mbg" id="m-riasztas">
+  <div class="mbox">
+    <div class="mhdr">SZER RIASZTÁSA – <span id="m-ev-szam" style="color:#00ccff;font-family:'Courier New',monospace">–</span>
+      <button class="cx" onclick="document.getElementById('m-riasztas').classList.remove('open')">×</button>
+    </div>
+    <div class="mbody">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <label style="font-weight:bold;color:#003399;font-size:11px">Állomás:</label>
+        <select class="fs" id="m-allomas-szuro" style="min-width:180px" onchange="betoltSzerModal()">
+          <option value="">Összes állomás</option>
+          <option value="sze">Szeged HTP</option>
+          <option value="hmv">Hódmező HTP</option>
+          <option value="mak">Makó HTP</option>
+          <option value="szt">Szentes HTP</option>
+        </select>
+      </div>
+      <table class="tbl">
+        <thead><tr><th>Állomás</th><th>Hívónév</th><th>Típus</th><th>Ltsz.</th><th>Víz/Mag</th><th>Állapot</th><th></th></tr></thead>
+        <tbody id="m-szer-body"><tr><td colspan="7" style="text-align:center"><span class="spin"></span></td></tr></tbody>
+      </table>
+    </div>
+    <div class="mfoot"><button class="btn bgr" onclick="document.getElementById('m-riasztas').classList.remove('open')">BEZÁRÁS</button></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"><div class="tt" id="tt-title">RENDSZER</div><div id="tt-msg"></div></div>
+<!-- RIASZTÁS BADGE -->
+<div id="rias-badge" onclick="go('allomas')">🚒 ÚJ RIASZTÁS ÉRKEZETT!</div>
+
+<script>
+// Óra
+let _tt=null;
+function toast(msg,title){
+  document.getElementById('tt-msg').textContent=msg;
+  document.getElementById('tt-title').textContent=title||'RENDSZER';
+  const el=document.getElementById('toast');el.classList.add('show');
+  if(_tt)clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('show'),3500);
+}
+setInterval(()=>{
+  const t=new Date().toTimeString().slice(0,8);
+  document.querySelectorAll('[id^="clk-"]').forEach(el=>el.textContent=t);
+  const sa=document.getElementById('sa-clk');if(sa)sa.textContent=t;
+},1000);
+
+// Betöltés visszajelzés amikor a Firestore szerek frissülnek
+window._szerekFigyeloKb = null;
+</script>
+</body>
+</html>
